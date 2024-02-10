@@ -1,4 +1,4 @@
-import React, { useState, useEffect,useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import validator from "validator";
 
 const Register = ({ onRouteChange, getUserData }) => {
@@ -18,6 +18,10 @@ const Register = ({ onRouteChange, getUserData }) => {
 
   const onNameChange = (event) => {
     setName(event.target.value);
+  };
+
+  const saveAuthTokenInSession = (token) => {
+    window.localStorage.setItem("token", token);
   };
 
   const onSubmitUser = useCallback(async () => {
@@ -48,7 +52,8 @@ const Register = ({ onRouteChange, getUserData }) => {
         }
       );
       if (response.ok) {
-        const user = await response.json();
+        const { user, token } = await response.json();
+        saveAuthTokenInSession(token);
         getUserData(user);
         onRouteChange("home");
       } else {
@@ -59,7 +64,7 @@ const Register = ({ onRouteChange, getUserData }) => {
     } finally {
       setDisableButton(false);
     }
-  }, [email, password, name, onRouteChange, getUserData]); 
+  }, [email, password, name, onRouteChange, getUserData]);
 
   useEffect(() => {
     const keyDownHandler = (event) => {

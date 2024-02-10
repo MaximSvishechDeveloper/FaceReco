@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
 import Navigation from "./Components/Navigation/Navigation";
 import Logo from "./Components/Logo/Logo";
@@ -18,24 +18,25 @@ function App() {
   const [user, setUser] = useState({});
   const [errMsg, setErrMessage] = useState("");
 
-  
-
   const calculateFaceLocation = (data) => {
-    const image = document.getElementById("inputimage");
-    const width = Number(image.width);
-    const height = Number(image.height);
+    if (data) {
+      const image = document.getElementById("inputimage");
+      const width = Number(image.width);
+      const height = Number(image.height);
 
-    const border = data.map((result, index) => {
-      return {
-        key: index,
-        leftCol: result.region_info.bounding_box.left_col * width,
-        topRow: result.region_info.bounding_box.top_row * height,
-        rightCol: width - result.region_info.bounding_box.right_col * width,
-        bottomRow: height - result.region_info.bounding_box.bottom_row * height,
-      };
-    });
+      const border = data.map((result, index) => {
+        return {
+          key: index,
+          leftCol: result.region_info.bounding_box.left_col * width,
+          topRow: result.region_info.bounding_box.top_row * height,
+          rightCol: width - result.region_info.bounding_box.right_col * width,
+          bottomRow:
+            height - result.region_info.bounding_box.bottom_row * height,
+        };
+      });
 
-    return border;
+      return border;
+    }
   };
 
   const OnInputChange = (event) => {
@@ -43,7 +44,54 @@ function App() {
   };
 
   const displayBox = (box) => {
-    setImageBorder(box);
+    if (box) {
+      setImageBorder(box);
+    }
+  };
+  const getUserProfile = async (user) => {
+    console.log(user);
+    const userPromise = await fetch(
+      `https://facereco-backend.onrender.com/profile/${user.userId}`,
+      {
+        method: "get",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: window.localStorage.getItem("token"),
+        },
+      }
+    );
+
+    const userProfile = await userPromise.json();
+    if (userProfile) {
+      onUserChange(userProfile);
+      onRouteChange("home");
+    }
+  };
+
+  useEffect(() => {
+    const token = window.localStorage.getItem("token");
+    if (token) {
+      fetch("https://facereco-backend.onrender.com/signin", {
+        method: "post",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token,
+        },
+      })
+        .then((res) => res.json())
+        .then((user) => getUserProfile(user))
+        .catch((error) => console.error("Error during fetch:", error));
+    }
+  }, []);
+
+  const updateUser = (name, age, pet) => {
+    setUser((prevUser) => {
+      const updatedUser = { ...prevUser };
+      if (name !== "") updatedUser.name = name;
+      if (age !== "" && age !== 0) updatedUser.age = age;
+      if (pet !== "") updatedUser.pet = pet;
+      return updatedUser;
+    });
   };
 
   const onRouteChange = (route) => {
@@ -51,7 +99,12 @@ function App() {
     setImg("");
     setImageBorder({});
     SetRoute(route);
-    route === "home" ? SetSignedIn(true) : SetSignedIn(false);
+    if (route === "home") {
+      SetSignedIn(true);
+    } else {
+      window.localStorage.removeItem("token");
+      SetSignedIn(false);
+    }
   };
 
   const onUserChange = (user) => {
@@ -61,14 +114,20 @@ function App() {
   const updateUserEntriesCount = async () => {
     const req = {
       method: "put",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: window.localStorage.getItem("token"),
+      },
       body: JSON.stringify({
         id: user.id,
       }),
     };
 
     try {
-      const response = await fetch("https://facereco-backend.onrender.com/image", req);
+      const response = await fetch(
+        "https://facereco-backend.onrender.com/image",
+        req
+      );
       if (response.ok) {
         const newEntries = await response.json();
         setUser({ ...user, entries: newEntries[0].entries });
@@ -81,7 +140,10 @@ function App() {
   const onButtonSubmit = () => {
     const req = {
       method: "post",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: window.localStorage.getItem("token"),
+      },
       body: JSON.stringify({
         input: input,
       }),
@@ -96,7 +158,13 @@ function App() {
     fetch("https://facereco-backend.onrender.com/imageUrl", req)
       .then((response) => response.json())
       .then((result) => {
-        if (Object.keys(result.outputs[0].data).length === 0) {
+        if (
+          result === "Unathorized" ||
+          Object.keys(result?.outputs[0]?.data).length === 0
+        ) {
+          if (result === "Unathorized") {
+            return Promise.reject("Unathorized");
+          }
           if (result.outputs[0].status.code === 30104) {
             setErrMessage("Too Long URL");
             return Promise.reject("Too Long URL");
@@ -122,7 +190,12 @@ function App() {
   return (
     <div className="App">
       <ParticlesBg color="#FFFFFF" type="cobweb" bg={true} />
-      <Navigation isSignedIn={isSignedIn} onRouteChange={onRouteChange} />
+      <Navigation
+        user={user}
+        updateUserData={updateUser}
+        isSignedIn={isSignedIn}
+        onRouteChange={onRouteChange}
+      />{" "}
       {route === "home" ? (
         <div>
           <Logo />
